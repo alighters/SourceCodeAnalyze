@@ -4,7 +4,9 @@
 
 ## 为什么要引入ArrayMap？
   在Android设备上，因为App的内存限制，出现OOM的错误，导致开发者不得不关注一些底层数据结构以及去分析App的内存使用情况。提及数据结构，HashMap是我们最经常使用到的，而我们是否会注意其实现的细节以及有什么优缺点呢？
-  
+
+<!-- more -->
+
   这里简单提及一下HashMap在扩容时采取的做法是：将当前的数据结构所占空间*2，而这对安卓稀缺的资源来说，可是非常大的消耗。所以就诞生了ArrayMap，它是在API19引入的，这样我们在兼容以前版本的时候，support包就派上用场了，可是为什么不直接是使用ArrayMap，而会多出来一个SimpleArrayMap呢？不得不说这是谷歌的厚道、人性化处，考虑我们使用ArrayMap时，可能不需要使用Java标准的集合API，而给我们提供的一个纯算法实现的ArrayMap。
   
   上面提到的集合API，是SimpleArrayMap跟v4包中的ArrayMap最大的区别，证明就是ArrayMap继承了SimpleArrayMap，又实现了Map的接口；主要的操作，则是通过引入MapCollections类，使用Map中的Entry结构，这样在ArrayMap中就可以通过`Iterator`来进行数据的的迭代操作。
@@ -13,7 +15,9 @@
   简单地了解一下其思想，是我们接下来进行源码分析的必要步骤，方便我们带着问题去验证我们所想。兵马未动，粮草先行。做事前一定要先把准备工作做好，事情理顺，尽量地充分考虑工作的细节 ，再开始进行工作。正如我们现在项目开发之前，一定要先进行任务点的分解，而这时思维导图、UML建模工具则是我们必须玩转的东西。
   
   + 思想：SimpleArrayMap采用了两个数组来进行hash值与key、value值得保存，另外，数组大小超过8时，并需要进行扩容时，只增大当前数组大小的一半，并对大小为4和8的数组进行缓存。这样最后带来的好处就是最大程度保证了数组空间都能够被使用，一定程度上避免了内存空间的浪费。
-  + 数据结构方式：使用了两个数组，一个是Hash数组，另一个是大小*2的Array数组，为了保证通用性，这里所使用的是Object数组。Array数组中使用key+value间隔存取的方式，偶数为即`0 -> key1 1 -> value1 2 -> key2 3 -> value2 `。另外Hash数组，则是对应的Key的Hash值数组，并且这是一个有序的int数组，这样在进行Key的查找时，使用二分查找则是最有效率的方式了。
+  + 数据结构方式：使用了两个数组，一个是Hash数组，另一个是大小*2的Array数组，为了保证通用性，这里所使用的是Object数组。Array数组中使用key+value间隔存取的方式，偶数为即`0 -> key1 1 -> value1 2 -> key2 3 -> value2 `。另外Hash数组，则是对应的Key的Hash值数组，并且这是一个有序的int数组，这样在进行Key的查找时，使用二分查找则是最有效率的方式了。如下图：
+
+ ![SimpleArrayMap结构图](http://7xpyth.com1.z0.glb.clouddn.com/SimpleArrayMap%E7%BB%93%E6%9E%84%E6%88%AA%E5%9B%BE.png)
 
 ## 数据结构定义
 ### 1.数据结构
@@ -109,6 +113,7 @@ public V put(K key, V value) {
    final int hash;
    int index;
    if (key == null) {
+      // 查找key为null的情况
       hash = 0;
       index = indexOfNull();
    } else {
@@ -116,6 +121,7 @@ public V put(K key, V value) {
       index = indexOf(key, hash);
    }
    if (index >= 0) {
+      // 数组中存在相同的key，则更新并返回旧的值
       index = (index<<1) + 1;
       final V old = (V)mArray[index];
       mArray[index] = value;
@@ -124,6 +130,7 @@ public V put(K key, V value) {
 
    index = ~index;
    if (mSize >= mHashes.length) {
+      // 当容量不够时，需要建立一个新的数组，来进行扩容操作。
       final int n = mSize >= (BASE_SIZE*2) ? (mSize+(mSize>>1))
          : (mSize >= BASE_SIZE ? (BASE_SIZE*2) : BASE_SIZE);
 
@@ -142,6 +149,7 @@ public V put(K key, V value) {
       freeArrays(ohashes, oarray, mSize);
    }
 
+   // 将index之后的数据进行后移
    if (index < mSize) {
       if (DEBUG) Log.d(TAG, "put: move " + index + "-" + (mSize-index)
             + " to " + (index+1));
@@ -149,7 +157,9 @@ public V put(K key, V value) {
       System.arraycopy(mArray, index << 1, mArray, (index + 1) << 1, (mSize - index) << 1);
    }
 
+   // 赋值给index位置上hash值
    mHashes[index] = hash;
+   // 更新array数组中对应的key跟value值。
    mArray[index<<1] = key;
    mArray[(index<<1)+1] = value;
    mSize++;
@@ -157,14 +167,8 @@ public V put(K key, V value) {
 }
 
 ```
-代码中，可以看出其实现的主要步骤如下：
-
-+ 1.判断当key为空的时候，查找其对应的index值
-+ 2.key不为空的时候，根据key及其hash值在hash数组进行查找来获取index
-+ 3.若index大于等于0，即hash数组中存在相应的key值，则取在array数组中`index*2 + 1 `的索引对应的value，作为旧的value返回，并赋值新的value值
-+ 4.若index小于0，即hash数组不存在相应的key值，此时，index取反，即是我们需要插入的位置，则其之后的数据进行后移的操作。
-+ 5.这里有个mSize跟hash数组长度的判断，当大于等于的时候，需要对数组的容量进行一些扩容，并拷贝数组到新的数组中。（扩容操作：当size大于8, 取size + size /2 ; 当size大于4小于8时， 取8 ，当size小于4时，取4）
-+ 6.在index的位置上，更新最新的数据。数据主要有hash数组，array数组中index\*2赋值为key，index\*2 +1赋值为value值。
+代码中，可以看出arrayMap允许key为空，所有的key都不能重复。
+另外，在进行容量修改的时候，进行的操作是：mSize跟hash数组长度的判断，当大于等于的时候，需要对数组的容量进行一些扩容，并拷贝数组到新的数组中。（扩容操作：当size大于8, 取size + size /2 ; 当size大于4小于8时， 取8 ，当size小于4时，取4）
 
 ### 2. 取数据get（key)
 ```
@@ -216,6 +220,7 @@ public V removeAt(int index) {
       mArray = ContainerHelpers.EMPTY_OBJECTS;
       mSize = 0;
    } else {
+      // 满足条件，对数组进行加入缓存的操作。
       if (mHashes.length > (BASE_SIZE*2) && mSize < mHashes.length/3) {
          // Shrunk enough to reduce size of arrays.  We don't allow it to
          // shrink smaller than (BASE_SIZE*2) to avoid flapping between
@@ -331,7 +336,7 @@ int indexOfNull() {
    int index = ContainerHelpers.binarySearch(mHashes, N, 0);
 
    // If the hash code wasn't found, then we have no entry for this key.
-   if (index < 0) {
+   ！if (index < 0) {
       return index;
    }
 
@@ -412,7 +417,9 @@ static int mBaseCacheSize;
 static Object[] mTwiceBaseCache;
 static int mTwiceBaseCacheSize;
 ```
-代码中有两个静态的Object数组，这两个静态数组采用链表的方式来缓存所有的数组。即Object数组会用来指向array数组，而这个array的第一个值为指针，指向下一个array，而第二个值是对应的hash数组，其他的值则为空。另外，缓存数组即baseCache和twiceBaseCache，它俩大小容量的限制：最小值为4，最大值为10，而BaseCache数组主要存储的是容量为4的数组，twiceBaseCache主要存储容量为8的数组。
+代码中有两个静态的Object数组，这两个静态数组采用链表的方式来缓存所有的数组。即Object数组会用来指向array数组，而这个array的第一个值为指针，指向下一个array，而第二个值是对应的hash数组，其他的值则为空。另外，缓存数组即baseCache和twiceBaseCache，它俩大小容量的限制：最小值为4，最大值为10，而BaseCache数组主要存储的是容量为4的数组，twiceBaseCache主要存储容量为8的数组。如图：
+
+![SimpleArrayMap缓存图](http://7xpyth.com1.z0.glb.clouddn.com/SimpleArrayMap%E7%BC%93%E5%AD%98%E7%BB%93%E6%9E%84%E5%9B%BE.png)
 
 ### 2.缓存数据添加
 
@@ -499,4 +506,8 @@ private void allocArrays(final int size) {
 + ArrayMap支持key为null，但数组只能有一个key为null的存在。另外，允许多个key的hash值相同，不过尽量避免吧，不然二分查找获取不到，又会进行遍历查找；而key都必须是唯一，不能重复的。
 + 主要目的是避免占用大量的内存切无法得到地充分利用。
 + 对容量为4和容量为8的数组，进行缓存，来防止内存抖动的发生。
+
+
+> PS: 转载请注明[原文链接](http://alighters.com/blog/2016/04/29/simplearraymapyuan-ma-jie-xi/)
+
 
