@@ -1,7 +1,10 @@
+# Dagger2生成代码深入理解
+
 最近，看到一些小伙伴想要入门Dagger2，加之最近刚经历了Dagger2的水深火热，在这里针对Dagger2中不同的注解方式，会生成怎样的代码，结合其生成的不同代码，来帮助大家做一些深入的理解。
 
 <!-- more -->
-#概念
+
+# 概念
 首先，Dagger2是一个DI的解决方案，跟之前接触过的Spring相比，它最主要的好处是通过apt插件在编译阶段时，用来生成注入的代码；而Spring是需要在运行时，通过XML或者注解来进行代码注入的。所以，相比来说，在性能上，Dagger2是优于Spring，但带来的是编译阶段时间的延长。这样的话，每当我们修改或者添加这些注解代码的时候，就需要我们重新Build一下（即由apt插件来生成我们所需要使用的代码），build时间的延长，感觉这对Android开发程序员来说，应该习以为常了吧。（掩面而泣。。。）
 
 另外，不得不提的就是apt插件的成熟。apt插件通过生成代码的方式会使得我们则针对特定规则的代码，通过添加注解，使用apt在编译阶段生成代码，减少我们的代码书写量。在gayhub上，已经有很多成熟的库，在使用apt来生成代码，像[bundler](https://github.com/workarounds/bundler)这个库，就是通过封装Intent参数跟界面组件来绑定，这样我们就可不必通过getIntent来一个个获取参数。另外还提供了使用`saveState`和`restoreState`，使得我们在界面组件异常退出的时候，不必再使用`savedInstance`来进行数据的保存与获取。还有就是支持`Parcelable`数据以及自定义数据parser，另作者不由不喜欢啊。
@@ -356,11 +359,10 @@ public final class DaggerApplicationComponent implements ApplicationComponent {
 这里，紧接着提及一下`Scope`的的用法。当我们为`Component`定义了`Scope`之后，并且在`module`的方法上，添加了`Scope`注解，这样Dagger2在`Component`中生成相应的`Provider`的时候，就会在前面添加`ScopedProvider`，来对我们所需要的`Provider`来提供单例模式的访问。具体可以看到的代码就是上面初始化过程中，生成`provideTestDataProvider`的字段。
 
 # 总结
-掌握了上面提及的这些内容，则Dagger2的不同注入方法，生成怎样的代码，我们就上手Dagger2的使用，若是在使用中还遇到问题的话，可加入下方的二维码群，来进行交流讨论。另外，感谢明道小伙伴们([月半兄](https://github.com/yueban)，[jager](https://github.com/laobie)，[lchad](https://github.com/lchad))对Dagger2的讨论。
+掌握了上面提及的这些内容，则Dagger2的不同注入方法，生成怎样的代码，我们就上手Dagger2的使用，若是在使用中还遇到问题的话，欢迎交流讨论。
 
 
 
-![Paste_Image.png](http://7xpyth.com1.z0.glb.clouddn.com/android-qq.png)
 
 
 > PS: 转载，请注明原文链接：http://alighters.com/blog/2016/04/15/dagger2-indepth-understanding/
